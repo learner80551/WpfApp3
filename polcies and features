@@ -1,0 +1,1235 @@
+You are modifying my **existing LANShare application**. Do NOT rebuild the application from scratch and do NOT replace the existing architecture unnecessarily.
+
+Your task is to integrate a secure **decentralized authority hierarchy, user authorization system, role-based access control, and metadata-only organizational history** into the existing application.
+
+## 1. CORE ARCHITECTURE PRINCIPLE
+
+LANShare remains a **decentralized peer-to-peer LAN application**.
+
+There must be NO permanent central server.
+
+Every PC can continue to communicate directly with another PC.
+
+The architecture must be divided into three logical planes:
+
+### A. CONTENT PLANE
+
+Actual communication and file transfer remain direct peer-to-peer.
+
+Example:
+
+User A
+|
+| actual message/file
+▼
+User B
+
+Actual files MUST NOT be replicated to Admin or Supervisor PCs.
+
+Actual chat bodies MUST NOT be replicated to Admin or Supervisor PCs.
+
+Actual photos, videos, audio, documents, attachments, and other media MUST NOT be copied into administrative history.
+
+### B. METADATA / ACTIVITY PLANE
+
+Only encrypted metadata describing communication and transfers may be replicated across authorized/trusted peers.
+
+Example:
+
+Rahul → Priya
+PDF
+ProjectPlan.pdf
+Project Planning
+15-09-2026 14:35
+Completed
+
+This means the system records that something was shared.
+
+It does NOT replicate the actual content.
+
+### C. AUTHORIZATION PLANE
+
+Implement:
+
+ADMIN
+↓
+SUPERVISORS
+↓
+USERS
+
+Authorization must be cryptographically verifiable and must NOT depend only on UI visibility or a role string stored in a local database.
+
+---
+
+# 2. ROLES
+
+Implement these roles:
+
+## ADMIN
+
+Exactly ONE permanent organization Admin.
+
+Admin can:
+
+* Create Supervisors
+* Remove Supervisors
+* Suspend Supervisors
+* Revoke Supervisors
+* Approve users
+* Reject users
+* Suspend users
+* Revoke users
+* Manage trusted devices
+* Manage security policies
+* Manage authority configuration
+* View organization-wide metadata history
+* View security events
+* View audit logs
+* Configure Supervisor permissions
+* Manage recovery/failover
+* Manage organization authority state
+
+There must never be two permanent ADMIN identities simultaneously.
+
+## SUPERVISOR
+
+Multiple Supervisors are allowed.
+
+Supervisor capabilities must be permission-based.
+
+Potential permissions:
+
+* USER_VIEW
+* USER_APPROVE
+* USER_REJECT
+* USER_SUSPEND
+* USER_REVOKE
+* DEVICE_VIEW
+* DEVICE_APPROVE
+* DEVICE_SUSPEND
+* DEVICE_REVOKE
+* HISTORY_METADATA_VIEW
+* AUDIT_VIEW
+* SECURITY_EVENT_VIEW
+
+A Supervisor MUST NOT automatically have Admin privileges.
+
+Supervisor MUST NOT be able to:
+
+* Create another permanent Admin
+* Remove the permanent Admin
+* Change root trust policy
+* Change cryptographic root authority
+* Arbitrarily modify authority hierarchy
+* Grant themselves Admin privileges
+
+unless an explicitly defined failover/acting-admin mechanism permits it.
+
+## USER
+
+Normal organizational user.
+
+User can:
+
+* Send messages
+* Receive messages
+* Send files
+* Receive files
+* View their own communication history
+* View their own file-transfer history
+* Manage permitted personal settings
+* View their own account/device status
+
+A USER must NOT be able to view another user's history.
+
+---
+
+# 3. OPTIONAL ACTING ADMIN FAILOVER
+
+Do NOT automatically promote an arbitrary Supervisor when the Admin disappears.
+
+Implement a controlled:
+
+ACTING_ADMIN
+
+state only if required by the existing architecture.
+
+The Acting Admin must:
+
+* Be an already authorized Supervisor
+* Require explicit eligibility
+* Have a temporary authority lease
+* Have an authority epoch/term
+* Have restricted high-risk permissions
+* Be auditable
+* Automatically expire
+* NOT permanently replace the Admin
+
+Normal Admin recovery must restore the permanent ADMIN identity.
+
+Do not create automatic "whoever connects first becomes Admin" behavior.
+
+---
+
+# 4. LOGIN / SIGNUP FLOW
+
+Modify the existing authentication UI.
+
+Initial screen should contain:
+
+USER LOGIN
+
+Username/email
+Password
+
+[ LOGIN ]
+
+Don't have an account?
+
+[ SIGN UP ]
+
+---
+
+STAFF LOGIN
+
+Admin / Supervisor
+
+[ STAFF LOGIN ]
+
+Staff Login must authenticate the device/account and determine whether the authenticated identity is ADMIN or SUPERVISOR.
+
+Do not allow the user to manually select "Admin" and gain privileges.
+
+The backend must determine the role from authorized records.
+
+---
+
+# 5. USER SIGNUP
+
+Normal signup flow:
+
+SIGN UP
+↓
+Enter account information
+↓
+Create password
+↓
+Create/register device identity
+↓
+Account created
+↓
+Account state = PENDING
+↓
+Wait for Admin/Supervisor authorization
+↓
+Approve or Reject
+↓
+Signed authorization record
+↓
+Replicate authorization metadata
+↓
+Account = ACTIVE
+
+A newly registered user MUST NOT automatically become ACTIVE.
+
+---
+
+# 6. USER ACCOUNT STATES
+
+Implement:
+
+PENDING
+ACTIVE
+SUSPENDED
+REVOKED
+LOCKED
+EXPIRED
+
+Enforce these states throughout the backend.
+
+Examples:
+
+PENDING:
+
+* Cannot use protected organizational functionality.
+
+ACTIVE:
+
+* Normal access according to role/permissions.
+
+SUSPENDED:
+
+* Access temporarily disabled.
+
+REVOKED:
+
+* Authorization permanently invalid unless explicitly re-authorized.
+
+LOCKED:
+
+* Authentication temporarily blocked.
+
+EXPIRED:
+
+* Authorization is no longer valid.
+
+Do not implement these states only visually. Backend authorization must enforce them.
+
+---
+
+# 7. USER AUTHENTICATION / APPROVAL PAGE
+
+Create a dedicated Admin/Supervisor page:
+
+## USER AUTHENTICATION
+
+Display pending users.
+
+Example:
+
+---
+
+## Pending User
+
+Name: Rahul
+Username: rahul
+Device: NAVLAN-PC-001
+Registered: 15-09-2026 14:20
+Status: PENDING
+
+[ VIEW DETAILS ]
+
+## [ APPROVE ] [ REJECT ]
+
+Approval must create a cryptographically verifiable authorization event.
+
+Example conceptual event:
+
+USER_APPROVED
+
+containing:
+
+event_id
+user_id
+device_id
+authority_id
+authority_role
+timestamp
+authority_epoch
+policy_version
+sequence_number
+payload_hash
+signature
+
+The authorization record must be replicated to trusted peers.
+
+---
+
+# 8. ROLE-BASED ACCESS CONTROL
+
+Implement proper RBAC.
+
+Do NOT rely on:
+
+if role == "admin"
+
+throughout the entire application.
+
+Instead implement centralized authorization such as:
+
+AuthorizationService
+PermissionService
+RolePolicy
+AuthorityValidator
+
+Conceptually:
+
+authorize(user, permission, resource)
+
+Examples:
+
+authorize(user, USER_APPROVE)
+authorize(user, HISTORY_METADATA_VIEW)
+authorize(user, DEVICE_REVOKE)
+
+The backend must validate:
+
+1. Account is valid
+2. Account is ACTIVE
+3. Device is trusted
+4. Role is valid
+5. Required permission exists
+6. Authorization record is valid
+7. Authorization signature is valid
+8. Authority epoch is valid
+9. Event is not revoked/replayed
+
+---
+
+# 9. DEVICE IDENTITY
+
+Do NOT trust:
+
+* IP address
+* MAC address
+* Hostname
+* Computer name
+
+as the primary identity.
+
+Every installation/device should have:
+
+device_id
+public_key
+private_key
+key_fingerprint
+certificate/identity information where appropriate
+
+The private key must never be transmitted.
+
+Use proof of private-key possession during authentication.
+
+Protect private keys using appropriate OS-protected storage where possible.
+
+For Windows, use suitable Windows protected credential/key storage mechanisms rather than plaintext files.
+
+---
+
+# 10. PASSWORD SECURITY
+
+NEVER store plaintext passwords.
+
+NEVER reversibly encrypt passwords for database storage.
+
+Use a modern password KDF such as:
+
+Argon2id
+
+with:
+
+* unique salt
+* appropriate work factor
+* secure password verification
+
+Do not invent custom cryptography.
+
+---
+
+# 11. CRYPTOGRAPHIC AUTHORIZATION
+
+Authority operations must be signed.
+
+Examples:
+
+ADMIN creates Supervisor
+ADMIN approves User
+SUPERVISOR approves User
+ADMIN revokes Device
+ADMIN changes Supervisor permissions
+
+These should produce signed authorization events.
+
+Peers must be able to independently verify:
+
+* Who issued the event
+* Whether they had authority
+* Whether the signature is valid
+* Whether the event is current
+* Whether it has already been processed
+* Whether it has been revoked
+* Whether the authority epoch is valid
+
+---
+
+# 12. METADATA-ONLY HISTORY
+
+This is one of the MOST IMPORTANT requirements.
+
+Administrative history MUST contain metadata only.
+
+Admin/Supervisor history may contain:
+
+sender
+receiver
+sender_user_id
+receiver_user_id
+sender_device_id
+receiver_device_id
+subject
+message_type
+filename
+file_extension
+content_type
+file_size
+transfer_id
+conversation_id
+message_id
+created_at
+started_at
+completed_at
+delivery_status
+read_status
+transfer_status
+integrity_status
+attachment_present
+attachment_type
+protocol_version
+origin_event_id
+sequence_number
+previous_event_hash
+metadata_signature
+
+Administrative history MUST NOT contain:
+
+* Actual file bytes
+* Actual chat body
+* Photos
+* Videos
+* Audio
+* Documents
+* Attachments
+* File previews
+* Media thumbnails
+* Downloadable administrative copies
+* Private keys
+* Passwords
+* Authentication secrets
+
+---
+
+# 13. ACTUAL FILE TRANSFER
+
+Actual file transfer must remain:
+
+User A
+|
+| TCP/P2P
+| actual file
+▼
+User B
+
+The Admin/Supervisor must NOT become a proxy or storage server merely because they have authority.
+
+The metadata record should only state:
+
+User A → User B
+File: ProjectPlan.pdf
+Type: PDF
+Size: 2.4 MB
+Subject: Project Planning
+Status: Completed
+Integrity: Verified
+
+The actual file remains with the intended recipient.
+
+---
+
+# 14. ACTUAL CHAT CONTENT
+
+Administrative history must NOT replicate chat bodies.
+
+For example:
+
+User A sends:
+
+"Please review the project document."
+
+Admin history should NOT contain that sentence.
+
+Instead it may contain:
+
+Sender: User A
+Receiver: User B
+Subject: Project Review
+Message Type: TEXT
+Timestamp: 15-09-2026 14:30
+Attachment: YES
+
+The actual message content remains available only to authorized conversation participants according to the application's content-storage model.
+
+---
+
+# 15. NORMAL USER HISTORY
+
+Normal users can access only records involving themselves.
+
+Create:
+
+## MY HISTORY
+
+Sections:
+
+* Sent Messages
+* Received Messages
+* Sent Files
+* Received Files
+* Transfer History
+
+Every query must be filtered by the authenticated user's identity on the backend.
+
+Do NOT rely only on frontend filtering.
+
+A malicious user must not be able to modify an API/database request and retrieve another user's history.
+
+---
+
+# 16. ADMIN HISTORY
+
+Admin should have:
+
+## COMMUNICATION HISTORY
+
+Display organization-wide metadata.
+
+Example:
+
+Rahul → Priya
+Message
+Subject: Project Update
+15-09-2026 14:30
+Delivered
+
+And:
+
+## TRANSFER HISTORY
+
+Rahul → Priya
+PDF
+ProjectPlan.pdf
+2.4 MB
+Project Planning
+15-09-2026 14:35
+Completed
+Integrity: Verified
+
+There must be NO content preview or file download from these administrative history screens.
+
+---
+
+# 17. SUPERVISOR HISTORY
+
+Supervisors should see organization-wide metadata ONLY when their permissions allow:
+
+HISTORY_METADATA_VIEW
+
+The Admin must be able to configure Supervisor permissions.
+
+Supervisor access should follow least privilege.
+
+Every privileged history access should optionally generate:
+
+HISTORY_ACCESS
+
+metadata:
+
+viewer_user_id
+viewer_device_id
+timestamp
+target_scope
+records_accessed
+reason
+result
+event_id
+signature
+
+Do not log actual private message/file contents.
+
+---
+
+# 18. ENCRYPTED METADATA REPLICATION
+
+Metadata replication must be decentralized.
+
+There is no permanent central database server.
+
+Trusted peers can exchange encrypted metadata events.
+
+Example:
+
+Admin PC
+↕
+Supervisor PC
+↕
+Supervisor PC
+↕
+Trusted peers
+
+Only authorized/trusted peers should receive applicable metadata.
+
+Metadata must be:
+
+* encrypted in transit
+* encrypted at rest
+* integrity protected
+* authenticated
+* tamper evident
+* replay protected
+
+Possession of the metadata database alone must NOT automatically grant authorization to decrypt or view protected metadata.
+
+Use established cryptographic primitives and libraries.
+
+Do NOT create custom encryption algorithms.
+
+---
+
+# 19. EVENT-BASED REPLICATION
+
+Implement metadata as signed events rather than relying on blindly copying mutable database rows.
+
+Example:
+
+EVENT:
+
+event_id
+event_type
+origin_device_id
+origin_user_id
+timestamp
+sequence_number
+authority_epoch
+policy_version
+payload_hash
+previous_event_hash
+signature
+
+Possible events:
+
+USER_REGISTERED
+USER_APPROVED
+USER_REJECTED
+USER_SUSPENDED
+USER_REVOKED
+
+DEVICE_REGISTERED
+DEVICE_APPROVED
+DEVICE_SUSPENDED
+DEVICE_REVOKED
+
+MESSAGE_SENT
+MESSAGE_DELIVERED
+MESSAGE_READ
+
+TRANSFER_STARTED
+TRANSFER_COMPLETED
+TRANSFER_FAILED
+TRANSFER_INTEGRITY_FAILED
+
+HISTORY_ACCESS
+POLICY_CHANGED
+SUPERVISOR_CREATED
+SUPERVISOR_REVOKED
+
+Peers must verify events before accepting them.
+
+---
+
+# 20. REPLAY PROTECTION
+
+Every security-sensitive event must have sufficient protection against replay.
+
+Use combinations of:
+
+* unique event_id
+* sequence_number
+* authority_epoch
+* timestamp where appropriate
+* previous_event_hash
+* signature
+* processed-event tracking
+
+A previously processed authorization event must not be accepted again as a new authorization.
+
+---
+
+# 21. CONFLICT RESOLUTION
+
+Because LANShare is decentralized, multiple trusted peers may possess copies of metadata.
+
+Implement deterministic conflict handling.
+
+Security-sensitive revocation should take precedence over an allow state unless there is a newer valid reinstatement.
+
+Invalid signatures must always be rejected.
+
+Unauthorized events must always be rejected.
+
+Duplicate events must not create duplicate state.
+
+Conflicting authority events must be resolved using:
+
+authority epoch/term
++
+event ordering
++
+valid signatures
++
+defined policy
+
+Do NOT rely on local arrival order alone.
+
+---
+
+# 22. SPLIT-BRAIN PROTECTION
+
+Prevent two devices from believing they are simultaneously the permanent Admin.
+
+Use:
+
+authority_epoch / authority_term
+
+and appropriate quorum/dual-approval mechanisms for critical authority operations where practical.
+
+Critical operations may require multiple authorized authorities.
+
+Examples:
+
+* Changing root security policy
+* Changing authority configuration
+* Admin recovery
+* High-risk role changes
+
+Do not silently create competing Admin identities.
+
+---
+
+# 23. ADMIN/SUPERVISOR UNAVAILABLE
+
+Normal users should still be able to perform normal already-authorized P2P communication when Admin/Supervisors are offline.
+
+Previously issued valid authorization should be locally verifiable.
+
+However, sensitive administrative operations should be unavailable when required authority cannot be reached.
+
+Examples:
+
+* New user approval
+* New Supervisor creation
+* Root policy change
+* Device revocation
+* Authority recovery
+
+These should wait for appropriate authority.
+
+---
+
+# 24. DATABASE CHANGES
+
+Inspect the existing database architecture before modifying it.
+
+Add appropriate structures for:
+
+users
+roles
+permissions
+user_roles
+devices
+device_trust
+authority_state
+authority_epochs
+authorization_events
+metadata_events
+audit_events
+processed_events
+revocations
+policies
+
+Do NOT duplicate existing tables unnecessarily.
+
+Migrate existing data safely.
+
+Provide database migrations.
+
+Do not destroy existing user/file-transfer/history data.
+
+---
+
+# 25. UI CHANGES
+
+Add role-specific dashboards.
+
+## USER DASHBOARD
+
+* Home
+* Messages
+* Send File
+* Transfers
+* My History
+* Profile
+* Settings
+
+## SUPERVISOR DASHBOARD
+
+* Dashboard
+* User Authentication
+* Users
+* Devices
+* Communication History
+* Transfer History
+* Security Events
+* Audit Logs
+
+Only show permitted sections.
+
+## ADMIN DASHBOARD
+
+* System Overview
+* User Authentication
+* Users
+* Supervisors
+* Devices
+* Communication History
+* Transfer History
+* Security
+* Policies
+* Audit Logs
+* Recovery / Authority
+
+Again, UI visibility is NOT the security boundary.
+
+---
+
+# 26. HISTORY UI SECURITY
+
+Administrative history tables should explicitly indicate:
+
+"Metadata Only"
+
+Do not provide:
+
+Preview
+Open File
+Download
+Play
+View Attachment
+View Message Content
+
+for administrative metadata records.
+
+If the application already has reusable file/message components, make sure they cannot accidentally expose content through an administrative history route.
+
+---
+
+# 27. SEARCH/FILTERING
+
+Admin/Supervisor metadata history should support useful filtering:
+
+* Sender
+* Receiver
+* Date
+* Message type
+* File extension
+* Transfer status
+* Integrity status
+* Subject
+* Device
+* User
+
+But searching/filtering must still respect the authenticated user's permissions.
+
+---
+
+# 28. AUDIT LOGGING
+
+Audit security-sensitive operations.
+
+Examples:
+
+LOGIN_SUCCESS
+LOGIN_FAILURE
+USER_REGISTERED
+USER_APPROVED
+USER_REJECTED
+USER_SUSPENDED
+USER_REVOKED
+DEVICE_APPROVED
+DEVICE_REVOKED
+ROLE_CHANGED
+SUPERVISOR_CREATED
+SUPERVISOR_REVOKED
+POLICY_CHANGED
+HISTORY_ACCESS
+AUTHORIZATION_FAILURE
+INVALID_SIGNATURE
+REPLAY_DETECTED
+UNAUTHORIZED_EVENT
+TRANSFER_INTEGRITY_FAILURE
+
+Never log:
+
+* passwords
+* private keys
+* session secrets
+* encryption keys
+* actual file contents
+* actual chat contents
+
+Use tamper-evident audit records with hash chaining/signatures where appropriate.
+
+---
+
+# 29. SECURITY REQUIREMENTS
+
+Preserve and strengthen the application's existing security.
+
+Do not introduce:
+
+* plaintext passwords
+* shared master keys
+* hardcoded credentials
+* hardcoded Admin passwords
+* trust based solely on IP
+* trust based solely on MAC
+* automatic Admin promotion
+* insecure fallback protocols
+* unauthenticated authorization messages
+* unrestricted database access
+* frontend-only authorization
+
+Maintain:
+
+* TLS 1.3 where applicable
+* mutual authentication
+* device identity
+* cryptographic signatures
+* secure key storage
+* replay protection
+* authorization validation
+* SHA-256 file integrity verification
+* path traversal protection
+* safe duplicate filename handling
+* firewall restrictions
+* session timeout
+* rate limiting
+* connection/resource limits
+
+Use established libraries and protocols instead of implementing cryptographic primitives yourself.
+
+---
+
+# 30. BACKWARD COMPATIBILITY
+
+Before changing existing code:
+
+1. Inspect the complete existing project.
+2. Understand current modules.
+3. Identify current authentication/session/transfer/discovery/database implementations.
+4. Reuse existing abstractions where appropriate.
+5. Do not duplicate functionality.
+6. Do not break current P2P file transfer.
+7. Do not break discovery.
+8. Do not break existing history.
+9. Do not remove working functionality unnecessarily.
+
+Implement this as an incremental architectural enhancement.
+
+---
+
+# 31. TESTING REQUIREMENTS
+
+Create/extend automated tests.
+
+Test at minimum:
+
+### Authentication
+
+* Valid login
+* Invalid login
+* Locked account
+* Suspended account
+* Revoked account
+* Pending account
+
+### Signup
+
+* New user becomes PENDING
+* Pending user cannot bypass approval
+* Valid approval activates user
+* Rejection prevents activation
+
+### Authorization
+
+* User cannot access Admin APIs
+* User cannot access Supervisor APIs
+* Supervisor cannot perform Admin-only operations
+* Admin can perform Supervisor operations
+* Permission changes take effect correctly
+
+### History
+
+* User sees only own history
+* User cannot query another user's history
+* Admin can see permitted metadata
+* Supervisor can see permitted metadata
+* Supervisor cannot see restricted metadata
+
+### Content Isolation
+
+Verify that:
+
+* Actual file bytes are never included in replicated metadata
+* Actual chat body is never included in administrative metadata
+* Admin history cannot download transferred files
+* Admin history cannot preview attachments
+
+### Cryptography
+
+* Invalid signature rejected
+* Modified event rejected
+* Replay rejected
+* Wrong authority rejected
+* Expired authorization rejected
+* Revoked authorization rejected
+
+### Replication
+
+* Duplicate events handled safely
+* Offline peers synchronize correctly
+* Conflicting events resolved deterministically
+* Invalid events rejected
+* Revocation propagates correctly
+
+### Authority
+
+* Only one permanent Admin exists
+* Unauthorized user cannot become Admin
+* Supervisor cannot create permanent Admin
+* Acting Admin lease expires
+* Authority epoch prevents stale authority
+
+---
+
+# 32. IMPLEMENTATION PROCESS
+
+Do NOT immediately start editing random files.
+
+First:
+
+1. Inspect the existing project structure.
+2. Identify current authentication code.
+3. Identify current user/device identity code.
+4. Identify current database implementation.
+5. Identify current P2P session implementation.
+6. Identify current file-transfer implementation.
+7. Identify current history/logging implementation.
+8. Identify current UI routing/navigation.
+9. Identify existing tests.
+
+Then produce a short implementation plan.
+
+After the plan, implement the changes incrementally.
+
+After each major change:
+
+* compile/build
+* run tests
+* fix regressions
+* verify existing functionality
+
+---
+
+# 33. ACCEPTANCE CRITERIA
+
+The implementation is complete only when all of the following are true:
+
+[ ] Exactly one permanent Admin can exist.
+
+[ ] Multiple Supervisors can exist.
+
+[ ] Normal Users can sign up.
+
+[ ] Newly registered Users start as PENDING.
+
+[ ] Admin/Supervisor can approve/reject pending users.
+
+[ ] Approval is cryptographically authorized.
+
+[ ] Roles are enforced by backend authorization.
+
+[ ] User cannot access another user's history.
+
+[ ] Admin can see organization-wide communication metadata.
+
+[ ] Authorized Supervisors can see organization-wide metadata.
+
+[ ] Actual files remain P2P.
+
+[ ] Actual file bytes are NOT replicated to Admin/Supervisor.
+
+[ ] Actual chat bodies are NOT replicated to Admin/Supervisor history.
+
+[ ] Administrative history is metadata-only.
+
+[ ] Administrative history cannot download/preview actual files.
+
+[ ] Metadata replication is encrypted.
+
+[ ] Metadata events are authenticated and tamper evident.
+
+[ ] Replay protection exists.
+
+[ ] Revocation propagates correctly.
+
+[ ] Authority epoch prevents stale authority.
+
+[ ] Admin/Supervisor operations are audited.
+
+[ ] Passwords are never stored plaintext.
+
+[ ] Private keys are never transmitted.
+
+[ ] Existing P2P transfer continues to work.
+
+[ ] Existing discovery continues to work.
+
+[ ] Existing integrity verification continues to work.
+
+[ ] Existing application functionality is preserved.
+
+[ ] Automated tests cover the new security model.
+
+---
+
+# 34. IMPORTANT DEVELOPMENT RULE
+
+Do not simplify this architecture into:
+
+"Admin PC = Server"
+
+That is NOT what I want.
+
+The correct architecture is:
+
+```
+             AUTHORITY
+                │
+         ┌──────┴──────┐
+         │             │
+       ADMIN       SUPERVISORS
+         │             │
+         └──────┬──────┘
+                │
+              USERS
+```
+
+while communication remains:
+
+User A ───────────────► User B
+actual content
+
+and metadata operates separately:
+
+Admin/Supervisors/Trusted Peers
+↕ encrypted metadata
+↕
+Activity Events
+
+The Admin and Supervisors are **authority holders**, not permanent communication servers.
+
+Do not replicate actual content to them.
+
+The fundamental privacy/security rule is:
+
+**"Replicate the fact that communication happened, not the communication itself."**
+
+Implement this policy throughout the existing LANShare application without unnecessarily replacing its current architecture.
